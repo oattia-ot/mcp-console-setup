@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ============================================================
 #              MCP CONSOLE REFACTORED - FULL STACK
-#                    Professional Setup Script v2.7
+#                    Professional Setup Script v2.8
 # ============================================================
 
 RED='\033[0;31m'
@@ -14,10 +14,10 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-SCRIPT_VERSION="2.7"
+SCRIPT_VERSION="2.8"
 PROJECT_DIR="mcp-console"
 
-# --------------------------- FUNCTION DEFINITIONS (MUST BE FIRST) ----------------------
+# --------------------------- FUNCTIONS ----------------------
 
 print_header() {
     echo -e "${CYAN}${BOLD}"
@@ -31,7 +31,8 @@ show_help() {
     echo -e "${CYAN}${BOLD}MCP Console Full Stack Setup v${SCRIPT_VERSION}${NC}"
     echo ""
     echo -e "${BOLD}Usage:${NC}"
-    echo -e "  ${GREEN}./setup.sh${NC}                    Full setup"
+    echo -e "  ${GREEN}./setup.sh${NC}                    Full setup (default)"
+    echo -e "  ${GREEN}./setup.sh --start${NC}            Same as above (starts the stack)"
     echo -e "  ${GREEN}./setup.sh --verify-only${NC}"
     echo -e "  ${GREEN}./setup.sh --stop${NC}"
     echo -e "  ${GREEN}./setup.sh --clean${NC}"
@@ -98,6 +99,7 @@ LOGS_SERVICE=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         -h|--help) show_help ;;
+        --start) shift ;;                    # <-- Added for compatibility (does nothing, starts by default)
         --stop) DO_STOP=true; shift ;;
         --clean) DO_CLEAN=true; shift ;;
         --verify-only) VERIFY_ONLY=true; shift ;;
@@ -142,14 +144,14 @@ if [ "$DO_LOGS" = true ]; then
     exit 0
 fi
 
-# --------------------------- MAIN EXECUTION ----------------------
+# --------------------------- MAIN ----------------------
 print_header
 verify_prerequisites
 [ "$VERIFY_ONLY" = true ] && exit 0
 
 echo -e "${BLUE}📦 Preparing mcp-console full stack...${NC}"
 
-# Extract or copy project
+# Extract project
 TARBALL="${SCRIPT_DIR}/mcp-console.tar.gz"
 if [ -f "$TARBALL" ]; then
     rm -rf "$PROJ"
@@ -165,33 +167,27 @@ fi
 cd "$PROJ"
 handle_container_conflict
 
-# ============================================================
-# .env file handling
-# ============================================================
+# .env handling
 ENV_FILE="${SCRIPT_DIR}/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${YELLOW}Creating default .env file...${NC}"
     cat > "$ENV_FILE" << 'EOT'
-# MCP Console Configuration
 VITE_OLLAMA_URL=http://ollama:11434
-DEFAULT_MODEL=gemma3:4b
+DEFAULT_MODEL=gemma3:12b
 EOT
 fi
 
-# Load variables
 set -a
 source "$ENV_FILE"
 set +a
 
 VITE_OLLAMA_URL="${VITE_OLLAMA_URL:-http://ollama:11434}"
-DEFAULT_MODEL="${DEFAULT_MODEL:-gemma3:4b}"
+DEFAULT_MODEL="${DEFAULT_MODEL:-gemma3:12b}"
 
 echo -e "${BLUE}Using model from .env: ${BOLD}${DEFAULT_MODEL}${NC}"
 
-# ============================================================
 # Create Dockerfile
-# ============================================================
 cat > Dockerfile << 'EOF'
 # syntax=docker/dockerfile:1
 FROM node:20-alpine
@@ -211,9 +207,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 EOF
 
-# ============================================================
 # Create docker-compose.yml
-# ============================================================
 cat > docker-compose.yml << EOF
 services:
   ollama:
@@ -262,9 +256,6 @@ volumes:
   open_webui_data:
 EOF
 
-# ============================================================
-# Start stack
-# ============================================================
 echo -e "${BLUE}🐳 Starting full stack...${NC}"
 docker compose down 2>/dev/null || true
 docker compose up -d --build
@@ -279,5 +270,5 @@ echo -e "  ${CYAN}MCP Console${NC}   →  ${BOLD}http://localhost:5173${NC}"
 echo -e "  ${CYAN}Open WebUI${NC}    →  ${BOLD}http://localhost:8080${NC}"
 echo ""
 echo -e "${YELLOW}Model in use:${NC} ${BOLD}${DEFAULT_MODEL}${NC}"
-echo -e "${YELLOW}Edit ${BOLD}${ENV_FILE}${NC} to change the model and re-run ./setup.sh${NC}"
+echo -e "${YELLOW}Edit ${BOLD}${ENV_FILE}${NC} to change the model.${NC}"
 echo ""
